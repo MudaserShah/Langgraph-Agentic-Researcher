@@ -1,0 +1,92 @@
+/*
+ * index.css — Global styles and Tailwind CSS directives.
+ *
+ * HOW TAILWIND WORKS:
+ *   @tailwind base      → Tailwind's CSS reset and base HTML element styles
+ *   @tailwind components → Tailwind's built-in component classes (rarely used)
+ *   @tailwind utilities → All the utility classes (flex, text-sm, bg-blue-500, etc.)
+ *
+ *   Tailwind scans your files for class names and generates ONLY the CSS you use.
+ *   This keeps the final bundle very small.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base styles ──────────────────────────────────────────────────────────── */
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar for the terminal panel */
+  .terminal-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .terminal-scrollbar::-webkit-scrollbar-track {
+    background: #0d1117;
+  }
+
+  .terminal-scrollbar::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+  }
+
+  .terminal-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+  }
+}
+
+/* ── Prose customisation for the report panel ────────────────────────────── */
+/*
+ * The `prose` class from @tailwindcss/typography styles markdown-rendered HTML.
+ * We override a few values here to match the design.
+ */
+@layer utilities {
+  .prose-report {
+    @apply prose prose-slate max-w-none;
+  }
+
+  .prose-report h1 {
+    @apply text-slate-900 text-2xl font-bold border-b border-slate-200 pb-3 mb-4;
+  }
+
+  .prose-report h2 {
+    @apply text-slate-800 text-lg font-semibold mt-8 mb-3;
+  }
+
+  .prose-report h3 {
+    @apply text-slate-700 text-base font-semibold mt-5 mb-2;
+  }
+
+  .prose-report p {
+    @apply text-slate-700 leading-relaxed;
+  }
+
+  .prose-report a {
+    @apply text-indigo-600 hover:text-indigo-800;
+  }
+
+  .prose-report ul, .prose-report ol {
+    @apply text-slate-700;
+  }
+
+  .prose-report strong {
+    @apply text-slate-900;
+  }
+}
