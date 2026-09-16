@@ -30,7 +30,7 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
               Agentic Researcher
             </h1>
             <p className="text-indigo-300/70 text-xs truncate hidden sm:block">
-              Lecture 19 · LangGraph · Web Search · PDF Reports
+              LangGraph · Web Search · PDF Reports
             </p>
           </div>
         </div>
