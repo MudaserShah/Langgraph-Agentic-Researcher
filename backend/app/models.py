@@ -1,87 +1,93 @@
-# models.py — All Pydantic request/response models for Document Butler.
-# FastAPI auto-generates Swagger UI from these models.
+"""
+models.py — Pydantic models for the Agentic Research Assistant.
+
+WHAT ARE PYDANTIC MODELS?
+  Pydantic models are Python classes that validate data automatically.
+  When FastAPI receives a JSON request body, it passes the JSON through
+  the matching Pydantic model. If a required field is missing or the
+  wrong type, FastAPI returns a clear 422 error — no manual checking needed.
+
+  Same for responses: FastAPI serializes the model to JSON automatically.
+
+TWO KINDS OF MODELS HERE:
+  1. HTTP request/response models  — define the shape of API data
+  2. (Note: LangGraph state is defined as a TypedDict in agent.py, not here)
+"""
 
 from typing import List, Optional
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
 
 
-# ── Citation ──────────────────────────────────────────────────────────────────
+# ── Request models ────────────────────────────────────────────────────────────
 
-class Citation(BaseModel):
-    """One source chunk used to generate the answer. Contains everything needed
-    for the frontend to open the exact location in the original document."""
-    file_name: str               # Original filename
-    page_number: int             # 1-indexed page number
-    chunk_index: int             # Position of this chunk within the document
-    chunk_text: str              # The exact text excerpt that was used
-    relevance_score: float       # Cosine similarity score (0.0 – 1.0)
-    doc_id: str                  # Used by frontend to fetch /files/{doc_id}/markdown
-    is_table: bool = False       # True if this chunk is a table (smart chunking result)
+class ResearchRequest(BaseModel):
+    """
+    The body of POST /research.
+    The user sends a topic; optionally forces web search on/off.
+    """
 
+    topic: str
+    # None = let the agent decide the search strategy
+    # True = always do web search (override agent's choice)
+    use_web_search: Optional[bool] = None
 
-# ── Query ─────────────────────────────────────────────────────────────────────
-
-class QueryRequest(BaseModel):
-    question: str
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of chunks to retrieve")
-
-
-class QueryResponse(BaseModel):
-    answer: str
-    references: List[Citation]
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {"topic": "Impact of large language models on education"},
+                {"topic": "Latest advances in quantum computing 2025", "use_web_search": True},
+            ]
+        }
+    }
 
 
-# ── Upload ────────────────────────────────────────────────────────────────────
+# ── Response models ───────────────────────────────────────────────────────────
 
-class FileUploadResult(BaseModel):
-    """Status for a single file in a batch upload."""
-    file_name: str
-    doc_id: str
-    file_type: str
-    status: str                  # "processing" | "error"
-    message: str
-    error: Optional[str] = None
+class Source(BaseModel):
+    """A single web source found during research."""
+    title: str
+    url: str
+    content_preview: str   # First ~120 characters of the page content
 
 
-class UploadResponse(BaseModel):
-    """Summary for a batch upload — one result per file."""
-    total_files: int
-    successful: int
-    failed: int
-    results: List[FileUploadResult]
+class ResearchReport(BaseModel):
+    """
+    Returned by GET /history/{id}.
+    Contains the full report text and all metadata.
+    """
+    topic: str
+    report_md: str           # Full markdown report text
+    sources: List[Source]
+    search_strategy: str     # "web_only" or "both"
+    sub_questions: List[str] # The 3 sub-questions the agent generated
+    url_count: int
+    created_at: str
 
 
-# ── Document listing ──────────────────────────────────────────────────────────
+# ── History models (NEW in Lecture 19) ───────────────────────────────────────
 
-class DocumentInfo(BaseModel):
-    doc_id: str
-    file_name: str
-    file_type: str
-    total_chunks: int
-    total_pages: int
-    upload_timestamp: str
-    status: str = Field(description="'processing' | 'ready' | 'error'")
+class HistoryItem(BaseModel):
+    """
+    A summary row shown in the history list.
+
+    We deliberately do NOT include the full report text here —
+    it can be large. The history list only shows enough info to
+    identify and choose a report. Full text is fetched on demand.
+    """
+    id: str            # Short 8-character ID used in /history/{id} URLs
+    topic: str
+    url_count: int     # How many web URLs were found during research
+    created_at: str    # ISO timestamp: "2025-04-14T16:30:00"
 
 
-class DocumentListResponse(BaseModel):
-    documents: List[DocumentInfo]
-    total: int
+class HistoryListResponse(BaseModel):
+    """Returned by GET /history."""
+    reports: List[HistoryItem]
+    total: int          # Total count (same as len(reports) for now, useful if we add pagination)
 
-
-# ── Delete ────────────────────────────────────────────────────────────────────
 
 class DeleteResponse(BaseModel):
-    status: str
-    doc_id: str
-    message: str
-
-
-# ── File viewer ───────────────────────────────────────────────────────────────
-
-class FileContentResponse(BaseModel):
-    """Response for GET /files/{doc_id}/markdown — used by the file viewer."""
-    doc_id: str
-    file_name: str
-    file_type: str
-    content: str          # Full markdown content with <!-- page:N --> markers
-    total_pages: int
+    """Returned by DELETE /history/{id}."""
+    status: str    # "deleted"
+    id: str

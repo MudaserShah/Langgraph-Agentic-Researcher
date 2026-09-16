@@ -1,0 +1,3 @@
+# app package — Agentic Research Assistant (Lecture 19)
+# This empty __init__.py file makes the app/ directory a Python package.
+# It allows other files to import from it using: from app.agent import ...
