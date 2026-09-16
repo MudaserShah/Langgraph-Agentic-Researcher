@@ -243,7 +243,7 @@ If you found this project useful, please consider giving it a ⭐ on GitHub.
 **Syed Mudaser Shah**
 
 - GitHub: https://github.com/MudaserShah
-- LinkedIn: *(Add your LinkedIn URL)*
+- LinkedIn: https://www.linkedin.com/in/syed-mudaser-shah123/
 
 ---
 
