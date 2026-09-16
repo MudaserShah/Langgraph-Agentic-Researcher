@@ -1,25 +1,8 @@
-"""
-models.py — Pydantic models for the Agentic Research Assistant.
-
-WHAT ARE PYDANTIC MODELS?
-  Pydantic models are Python classes that validate data automatically.
-  When FastAPI receives a JSON request body, it passes the JSON through
-  the matching Pydantic model. If a required field is missing or the
-  wrong type, FastAPI returns a clear 422 error — no manual checking needed.
-
-  Same for responses: FastAPI serializes the model to JSON automatically.
-
-TWO KINDS OF MODELS HERE:
-  1. HTTP request/response models  — define the shape of API data
-  2. (Note: LangGraph state is defined as a TypedDict in agent.py, not here)
-"""
 
 from typing import List, Optional
 
 from pydantic import BaseModel
 
-
-# ── Request models ────────────────────────────────────────────────────────────
 
 class ResearchRequest(BaseModel):
     """
@@ -28,8 +11,6 @@ class ResearchRequest(BaseModel):
     """
 
     topic: str
-    # None = let the agent decide the search strategy
-    # True = always do web search (override agent's choice)
     use_web_search: Optional[bool] = None
 
     model_config = {
@@ -42,7 +23,6 @@ class ResearchRequest(BaseModel):
     }
 
 
-# ── Response models ───────────────────────────────────────────────────────────
 
 class Source(BaseModel):
     """A single web source found during research."""
@@ -65,8 +45,6 @@ class ResearchReport(BaseModel):
     created_at: str
 
 
-# ── History models (NEW in Lecture 19) ───────────────────────────────────────
-
 class HistoryItem(BaseModel):
     """
     A summary row shown in the history list.
@@ -75,10 +53,10 @@ class HistoryItem(BaseModel):
     it can be large. The history list only shows enough info to
     identify and choose a report. Full text is fetched on demand.
     """
-    id: str            # Short 8-character ID used in /history/{id} URLs
+    id: str          
     topic: str
-    url_count: int     # How many web URLs were found during research
-    created_at: str    # ISO timestamp: "2025-04-14T16:30:00"
+    url_count: int   
+    created_at: str  
 
 
 class HistoryListResponse(BaseModel):

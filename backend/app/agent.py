@@ -1,12 +1,3 @@
-"""
-agent.py — Agentic Research Assistant using LangGraph.
-
-OpenAI-free version:
-  - Hugging Face LLM for validation, planning, and synthesis
-  - Hugging Face/local embeddings for Qdrant
-  - Tavily for web search
-  - LangGraph for agent orchestration
-"""
 
 import json
 import logging
@@ -27,8 +18,6 @@ logger = logging.getLogger(__name__)
 MAX_URLS = 20
 
 
-# ── Structured output schemas ────────────────────────────────────────────────
-
 class TopicValidation(BaseModel):
     is_valid: bool
     reason: str
@@ -40,8 +29,6 @@ class QueryAnalysis(BaseModel):
     search_strategy: str
     reasoning: str
 
-
-# ── Agent state ───────────────────────────────────────────────────────────────
 
 class ResearchState(TypedDict):
     topic: str
@@ -61,8 +48,6 @@ class ResearchState(TypedDict):
 
     thinking_steps: Annotated[List[str], add]
 
-
-# ── Helper: parse JSON returned by Hugging Face ───────────────────────────────
 
 def _parse_json_response(text: str) -> dict:
     """
@@ -97,8 +82,6 @@ def _parse_json_response(text: str) -> dict:
     return json.loads(json_text)
 
 
-# ── Agent builder ────────────────────────────────────────────────────────────
-
 def build_agent(hf_token: str = ""):
     """
     Build and compile the LangGraph research agent.
@@ -111,8 +94,6 @@ def build_agent(hf_token: str = ""):
     Returns:
         Compiled LangGraph agent.
     """
-
-    # Hugging Face token can come from argument or environment.
     hf_token = hf_token or os.getenv("HF_TOKEN", "")
 
     if not hf_token:
@@ -120,11 +101,6 @@ def build_agent(hf_token: str = ""):
             "HF_TOKEN is not configured. "
             "Add your Hugging Face token to the .env file."
         )
-
-    # Hugging Face model.
-    #
-    # This model is instruction-tuned and can be used through
-    # HuggingFaceEndpoint.
     model_name = os.getenv(
         "LLM_MODEL",
         "meta-llama/Llama-3.1-8B-Instruct",
@@ -140,8 +116,6 @@ def build_agent(hf_token: str = ""):
 
     # Tavily
     tavily_api_key = os.getenv("TAVILY_API_KEY", "")
-
-    # ── Node 1: Validate topic ───────────────────────────────────────────────
 
     def validate_topic(state: ResearchState) -> dict:
         topic = state["topic"]
@@ -231,7 +205,6 @@ Required JSON format:
             "thinking_steps": steps,
         }
 
-    # ── Node 2: Analyze query ────────────────────────────────────────────────
 
     def analyze_query(state: ResearchState) -> dict:
         topic = state["topic"]
@@ -324,7 +297,6 @@ Required JSON format:
             "thinking_steps": steps,
         }
 
-    # ── Node 3: Decide search strategy ──────────────────────────────────────
 
     def decide_search_strategy(state: ResearchState) -> dict:
         strategy = state.get("search_strategy", "web_only")
@@ -337,7 +309,6 @@ Required JSON format:
             ]
         }
 
-    # ── Node 4: Web search ───────────────────────────────────────────────────
 
     def web_search(state: ResearchState) -> dict:
         sub_questions = state.get("sub_questions", [])
@@ -423,7 +394,7 @@ Required JSON format:
             "thinking_steps": steps,
         }
 
-    # ── Node 5: Knowledge base search ───────────────────────────────────────
+
 
     def kb_search(state: ResearchState) -> dict:
         qdrant_url = os.getenv("QDRANT_URL", "")
@@ -529,7 +500,7 @@ Required JSON format:
                 "thinking_steps": steps,
             }
 
-    # ── Node 6: Synthesize ───────────────────────────────────────────────────
+
 
     def synthesize(state: ResearchState) -> dict:
 
@@ -701,7 +672,7 @@ Requirements:
             "thinking_steps": steps,
         }
 
-    # ── Routing ──────────────────────────────────────────────────────────────
+
 
     def route_after_validation(
         state: ResearchState,
@@ -721,7 +692,7 @@ Requirements:
 
         return "web_search"
 
-    # ── Build graph ──────────────────────────────────────────────────────────
+
 
     workflow = StateGraph(
         ResearchState

@@ -1,28 +1,3 @@
-"""
-database.py — Research History Storage using SQLite.
-
-NEW CONCEPT: SQLite
-  SQLite is Python's built-in database — it ships with Python, no installation needed.
-  Unlike PostgreSQL or MySQL (which need a running server), SQLite is a single file.
-  Perfect for local projects, prototypes, and teaching — zero configuration.
-
-  The database file (research_history.db) is created automatically the first time
-  init_db() is called. It lives in the backend/ folder alongside main.py.
-
-HOW IT FITS IN:
-  After the LangGraph agent finishes writing a report, api.py calls save_report().
-  The report (markdown text + sources) is stored in SQLite.
-  The frontend can then:
-    - Call GET /history  to list all past reports
-    - Call GET /history/{id}  to read a full report
-    - Call GET /history/{id}/pdf  to download it as a PDF
-
-SQLITE VS FILE STORAGE:
-  Why not just save .txt files?
-  - SQLite lets us query, order, and filter with SQL
-  - All data stays in one portable file
-  - Thread-safe for multi-request FastAPI servers
-"""
 
 import json
 import logging
@@ -34,25 +9,10 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Path to the SQLite file — read from settings (defaults to "research_history.db").
-# Relative to wherever uvicorn is launched from.
-# If you run `uvicorn main:app` from the backend/ folder, this creates backend/research_history.db
 DB_PATH = settings.db_path
 
 
-# ── Table schema ──────────────────────────────────────────────────────────────
 
-# We store everything in one table called "reports".
-# Each row = one completed research session.
-#
-# Columns:
-#   id              — short unique ID (first 8 chars of a UUID), used in URLs
-#   topic           — the original research topic the user typed
-#   report_md       — the full markdown report text
-#   sources_json    — JSON string of the sources list (we serialize Python lists to JSON)
-#   sub_questions_json — JSON string of the 3 sub-questions the agent generated
-#   url_count       — how many web URLs were found (for display in the history list)
-#   created_at      — ISO timestamp string like "2025-04-14T16:30:00"
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS reports (
@@ -67,7 +27,6 @@ CREATE TABLE IF NOT EXISTS reports (
 """
 
 
-# ── Public functions ──────────────────────────────────────────────────────────
 
 def init_db() -> None:
     """
@@ -209,8 +168,8 @@ def get_report(report_id: str) -> dict | None:
         "id": row[0],
         "topic": row[1],
         "report_md": row[2],
-        "sources": json.loads(row[3]),         # JSON string → Python list
-        "sub_questions": json.loads(row[4]),   # JSON string → Python list
+        "sources": json.loads(row[3]),         
+        "sub_questions": json.loads(row[4]),   
         "url_count": row[5],
         "created_at": row[6],
     }
@@ -230,7 +189,7 @@ def delete_report(report_id: str) -> bool:
             (report_id,),
         )
         conn.commit()
-        deleted = cursor.rowcount > 0  # rowcount = number of rows affected
+        deleted = cursor.rowcount > 0  
     finally:
         conn.close()
 

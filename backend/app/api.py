@@ -1,28 +1,3 @@
-"""
-api.py — API endpoint implementations for the Agentic Research Assistant.
-
-HOW THIS FILE FITS IN:
-  This file contains the actual logic for each HTTP endpoint.
-  routes.py just declares what URL each function handles.
-  main.py is the thin entry point that wires everything together.
-
-  This mirrors the structure from Lecture 18's api.py — separate the
-  "what URL" (routes.py) from the "what it does" (api.py).
-
-ENDPOINTS IN THIS FILE:
-  POST /research            — Stream research progress via Server-Sent Events (SSE)
-  GET  /history             — List all past research reports
-  GET  /history/{id}        — Get one full report
-  GET  /history/{id}/pdf    — Download a report as PDF
-  DELETE /history/{id}      — Delete a report
-  GET  /health              — Quick health check
-
-SSE REFRESHER:
-  Server-Sent Events (SSE) is a simple HTTP protocol where the server
-  keeps the connection open and streams lines of text as events happen.
-  The browser receives them in real time — great for live progress updates.
-  See main.py docstring for the full SSE format explanation.
-"""
 
 import asyncio
 import json
@@ -40,17 +15,10 @@ from app.models import DeleteResponse, HistoryItem, HistoryListResponse, Researc
 logger = logging.getLogger(__name__)
 
 
-# ── Shared application state ──────────────────────────────────────────────────
-# This dict holds objects that are expensive to create (the compiled agent).
-# Initialized once at startup in main.py's lifespan, then shared across all requests.
-# Same pattern as Lecture 18/19 app_state with embeddings + LLM.
 
 app_state: dict = {}
 
 
-# ── Node display names ────────────────────────────────────────────────────────
-# Human-readable labels shown in the thinking panel as each node starts running.
-# Keys must match the node names used in agent.py's workflow.add_node() calls.
 
 NODE_DISPLAY = {
     "validate_topic":           "Validating research topic",
@@ -62,7 +30,6 @@ NODE_DISPLAY = {
 }
 
 
-# ── SSE helper ────────────────────────────────────────────────────────────────
 
 def sse_event(data: dict) -> str:
     """
@@ -79,7 +46,6 @@ def sse_event(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-# ── Research endpoint (main SSE stream) ───────────────────────────────────────
 
 async def research(request: ResearchRequest):
     """
@@ -155,18 +121,11 @@ async def research(request: ResearchRequest):
             final_validation_reason = ""
             final_vector_results = []
 
-            # astream yields one dict per node as it completes.
-            # stream_mode="updates" means we only get the delta (new fields)
-            # not the entire accumulated state — this is what we want.
             async for chunk in agent.astream(initial_state, stream_mode="updates"):
                 for node_name, output in chunk.items():
                     if node_name not in NODE_DISPLAY:
                         continue  # Skip internal LangGraph bookkeeping nodes
 
-                    # ── Announce the node is running ──────────────────────────
-                    # (We send "node_start" when the node finishes, not before,
-                    # because astream only yields after completion. The UI still
-                    # shows it as a section header before the thinking steps.)
                     yield sse_event({
                         "event": "node_start",
                         "node": node_name,
@@ -175,10 +134,6 @@ async def research(request: ResearchRequest):
                     })
                     await asyncio.sleep(0.05)
 
-                    # ── Stream thinking steps one by one ──────────────────────
-                    # Each step is a string the node added to thinking_steps.
-                    # The add reducer ensures these are only the NEW steps from
-                    # this node (not the full accumulated list).
                     steps = output.get("thinking_steps", [])
                     for step in steps:
                         yield sse_event({
@@ -188,7 +143,7 @@ async def research(request: ResearchRequest):
                         })
                         await asyncio.sleep(0.08)
 
-                    # ── Capture outputs for DB storage + summary event ────────
+                 
                     if node_name == "synthesize":
                         final_report = output.get("report", "")
                         final_sources = output.get("sources", [])
@@ -204,7 +159,6 @@ async def research(request: ResearchRequest):
                     if node_name == "kb_search":
                         final_vector_results = output.get("vector_results", [])
 
-            # ── After graph finishes ──────────────────────────────────────────
 
             if not final_is_valid:
                 # Topic was rejected by validate_topic node
@@ -223,7 +177,7 @@ async def research(request: ResearchRequest):
                 )
                 logger.info(f"Report saved with id={report_id}")
 
-                # ── Complete event: the full report ───────────────────────────
+
                 yield sse_event({
                     "event": "complete",
                     "report": final_report,
@@ -232,9 +186,7 @@ async def research(request: ResearchRequest):
                     "report_id": report_id,   # Frontend uses this for PDF download
                 })
 
-                # ── Summary event: audit trail of what the agent did ──────────
-                # NEW: Sent after complete so the frontend can show a quick summary
-                # of the entire research session (sub-questions, URLs found, strategy).
+          
                 yield sse_event({
                     "event": "summary",
                     "stats": {
@@ -261,23 +213,18 @@ async def research(request: ResearchRequest):
             # [DONE] sentinel tells the frontend the stream is finished
             yield "data: [DONE]\n\n"
 
-    # Return a StreamingResponse with text/event-stream content type.
-    # FastAPI will call event_generator() and stream each yielded string
-    # to the client as it is produced.
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",       # Don't cache streaming responses
             "Connection": "keep-alive",
-            # Disable nginx response buffering — without this, nginx holds the
-            # entire stream until the connection closes, breaking SSE completely.
+           
             "X-Accel-Buffering": "no",
         },
     )
 
 
-# ── History endpoints ─────────────────────────────────────────────────────────
 
 def get_history():
     """

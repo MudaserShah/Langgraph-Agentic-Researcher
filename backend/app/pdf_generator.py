@@ -1,43 +1,3 @@
-"""
-pdf_generator.py — Convert a Markdown Research Report to a PDF file.
-
-NEW CONCEPT: reportlab
-  reportlab is the most widely used Python PDF library.
-  It lets you build PDFs programmatically — you describe what goes on each
-  page (headings, paragraphs, spacing) and reportlab handles the rendering.
-
-  Key objects:
-    SimpleDocTemplate  — sets up the page (size, margins) and builds the PDF
-    Paragraph          — a block of styled text (heading, body text, etc.)
-    Spacer             — adds vertical whitespace between elements
-    HRFlowable        — draws a horizontal rule (divider line)
-
-  These objects are called "Flowables" — they flow from one page to the next
-  automatically, just like text in a word processor.
-
-WHY BytesIO?
-  We don't want to write the PDF to disk and then read it back.
-  BytesIO is an in-memory file — it behaves exactly like a real file
-  (with .read(), .write(), .seek()) but lives in RAM.
-
-  This lets us:
-    1. Build the PDF into BytesIO
-    2. Call buffer.getvalue() to get the raw bytes
-    3. Return those bytes directly in an HTTP response
-  No temp files, no cleanup needed.
-
-HOW MARKDOWN IS PARSED:
-  We don't use a full markdown parser here — we process line by line.
-  This keeps the code simple and easy to follow for beginners.
-  Rules:
-    Line starting with "# "   → big title (H1)
-    Line starting with "## "  → section heading (H2)
-    Line starting with "### " → sub-heading (H3)
-    Line starting with "- "   → bullet point
-    Empty line                → vertical spacer
-    Anything else             → normal paragraph text
-  Bold text (**word**) is converted to <b>word</b> (reportlab understands HTML-like tags).
-"""
 
 import io
 import logging
@@ -52,9 +12,6 @@ from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
 logger = logging.getLogger(__name__)
 
 
-# ── Custom paragraph styles ───────────────────────────────────────────────────
-# reportlab comes with default styles (Title, Heading2, Normal, etc.) via
-# getSampleStyleSheet(). We extend these with our own custom styles.
 
 def _build_styles() -> dict:
     """
@@ -73,7 +30,7 @@ def _build_styles() -> dict:
             spaceAfter=12,
         ),
 
-        # ## Section headings
+
         "h2": ParagraphStyle(
             name="ReportH2",
             parent=base["Heading2"],
@@ -84,7 +41,6 @@ def _build_styles() -> dict:
             borderPadding=(0, 0, 4, 0),
         ),
 
-        # ### Sub-headings
         "h3": ParagraphStyle(
             name="ReportH3",
             parent=base["Heading3"],
@@ -94,12 +50,12 @@ def _build_styles() -> dict:
             spaceAfter=4,
         ),
 
-        # Regular body text
+       
         "body": ParagraphStyle(
             name="ReportBody",
             parent=base["Normal"],
             fontSize=10,
-            leading=16,          # line height (points) — 16pt feels comfortable to read
+            leading=16,
             textColor=colors.HexColor("#2d2d2d"),
             spaceAfter=8,
         ),
@@ -116,7 +72,7 @@ def _build_styles() -> dict:
             spaceAfter=4,
         ),
 
-        # Source URLs at the bottom (smaller, blue for links)
+      
         "source_title": ParagraphStyle(
             name="SourceTitle",
             parent=base["Normal"],
@@ -147,8 +103,6 @@ def _build_styles() -> dict:
     return styles
 
 
-# ── Inline markdown helpers ───────────────────────────────────────────────────
-
 def _convert_inline(text: str) -> str:
     """
     Convert inline markdown to reportlab's HTML-like markup.
@@ -163,19 +117,15 @@ def _convert_inline(text: str) -> str:
 
     We also escape the `&` character which is special in HTML/XML.
     """
-    # Escape & first (must be done before adding any < > tags)
     text = text.replace("&", "&amp;")
 
-    # **bold** → <b>bold</b>
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
 
-    # *italic* → <i>italic</i>  (must come AFTER bold replacement)
     text = re.sub(r"\*(.+?)\*", r"<i>\1</i>", text)
 
     return text
 
 
-# ── Main function ─────────────────────────────────────────────────────────────
 
 def generate_pdf(topic: str, report_md: str, sources: list) -> bytes:
     """
@@ -194,13 +144,8 @@ def generate_pdf(topic: str, report_md: str, sources: list) -> bytes:
         pdf_bytes = generate_pdf("AI in Healthcare", "# AI in Healthcare\\n...", [...])
         # pdf_bytes is ready to stream to the browser
     """
-    # ── Set up the in-memory buffer ───────────────────────────────────────────
-    # BytesIO acts exactly like a file, but lives in memory (no disk writes).
     buffer = io.BytesIO()
 
-    # SimpleDocTemplate wires together: the buffer, page size, and margins.
-    # A4 = 210mm × 297mm (standard international paper size).
-    # Margins are in "points" — we use cm (1 cm ≈ 28 points) for readability.
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
@@ -213,68 +158,50 @@ def generate_pdf(topic: str, report_md: str, sources: list) -> bytes:
     )
 
     styles = _build_styles()
-
-    # "story" is reportlab's term for the ordered list of content blocks.
-    # doc.build(story) renders them top-to-bottom, paginating automatically.
     story = []
 
-    # ── Parse the markdown report line by line ────────────────────────────────
-    # We strip out the Sources section from the body because we render
-    # sources separately at the bottom using the structured sources list.
     lines = report_md.split("\n")
 
-    # Find where the sources section starts (if LLM included one)
     sources_start_idx = len(lines)
     for i, line in enumerate(lines):
         if line.strip().lower() in ("## sources", "## references", "## 📚 sources"):
             sources_start_idx = i
             break
 
-    # Only process lines before the sources section
     for line in lines[:sources_start_idx]:
-
-        # ── H1 heading ────────────────────────────────────────────────────────
         if line.startswith("# "):
-            # Remove the "# " prefix and convert inline markdown
             text = _convert_inline(line[2:].strip())
             story.append(Paragraph(text, styles["title"]))
-            # Add a decorative horizontal rule below the title
             story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1a1a2e")))
             story.append(Spacer(1, 8))
 
-        # ── H2 heading ────────────────────────────────────────────────────────
         elif line.startswith("## "):
             text = _convert_inline(line[3:].strip())
             story.append(Paragraph(text, styles["h2"]))
 
-        # ── H3 heading ────────────────────────────────────────────────────────
         elif line.startswith("### "):
             text = _convert_inline(line[4:].strip())
             story.append(Paragraph(text, styles["h3"]))
 
-        # ── Bullet point ──────────────────────────────────────────────────────
         elif line.startswith("- "):
             text = _convert_inline(line[2:].strip())
-            # The bullet character "•" is set via the bulletText argument
+
             story.append(Paragraph(f"• {text}", styles["bullet"]))
 
-        # ── Numbered list item ────────────────────────────────────────────────
         elif re.match(r"^\d+\.\s", line):
             text = _convert_inline(re.sub(r"^\d+\.\s+", "", line).strip())
             story.append(Paragraph(f"• {text}", styles["bullet"]))
 
-        # ── Empty line → vertical spacer ──────────────────────────────────────
         elif line.strip() == "":
             # Spacer(width, height) — width is ignored for block layouts
             story.append(Spacer(1, 6))
 
-        # ── Normal paragraph ──────────────────────────────────────────────────
         else:
             text = _convert_inline(line.strip())
             if text:  # Skip lines that are empty after stripping
                 story.append(Paragraph(text, styles["body"]))
 
-    # ── Sources section ───────────────────────────────────────────────────────
+
     if sources:
         story.append(Spacer(1, 12))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cccccc")))
@@ -284,22 +211,14 @@ def generate_pdf(topic: str, report_md: str, sources: list) -> bytes:
             title = source.get("title", f"Source {i}")
             url = source.get("url", "")
 
-            # Number + title
             story.append(Paragraph(f"{i}. {_convert_inline(title)}", styles["source_title"]))
 
-            # URL (always plain text — no clickable links in basic reportlab)
             if url:
                 story.append(Paragraph(url, styles["source_url"]))
-
-    # ── Build the PDF ─────────────────────────────────────────────────────────
-    # doc.build() iterates through the story, places each flowable on the page,
-    # and writes the binary PDF data into our BytesIO buffer.
     try:
         doc.build(story)
     except Exception as e:
         logger.error(f"PDF generation failed: {e}", exc_info=True)
         raise
 
-    # Return the raw bytes from the buffer.
-    # getvalue() reads everything that was written to the buffer.
     return buffer.getvalue()
